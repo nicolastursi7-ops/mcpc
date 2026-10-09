@@ -1678,6 +1678,10 @@ export function formatSessionLine(session: SessionData): string {
         ? '[x402]'
         : `[x402 max ${formatUsdAmount(usdToAtomicUnits(session.x402MaxAmountUsd))}]`
     );
+    if (session.x402AllowedPayees !== undefined) {
+      const n = session.x402AllowedPayees.length;
+      infoStr += ' ' + theme.yellow(`[${n} allowed payee${n === 1 ? '' : 's'}]`);
+    }
   } else if (!session.server.command && session.profileName) {
     infoStr = chalk.dim('(OAuth: ') + theme.magenta(session.profileName) + chalk.dim(')');
   }

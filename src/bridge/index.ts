@@ -78,7 +78,12 @@ import type { ProxyConfig } from '../lib/types.js';
 import type { X402PaymentCache } from '../lib/x402/fetch-middleware.js';
 import type { SignerWallet } from '../lib/x402/signer.js';
 // Spend-limit helpers are deliberately dependency-free, so they stay a static import.
-import { X402PaymentLimitError, parseMaxAmountUsd, usdToAtomicUnits } from '../lib/x402/limits.js';
+import {
+  X402PaymentLimitError,
+  parseAllowedPayees,
+  parseMaxAmountUsd,
+  usdToAtomicUnits,
+} from '../lib/x402/limits.js';
 import { getScopedPaymentLimit, runWithPaymentLimit } from '../lib/x402/payment-scope.js';
 import type { FetchLike } from '@modelcontextprotocol/client';
 import { IpcLineBuffer } from '../lib/ipc-line-buffer.js';
@@ -104,6 +109,8 @@ interface BridgeOptions {
   x402?: X402SchemePreference;
   /** Local spend limit in USD applied to every single x402 payment. */
   x402MaxAmountUsd?: number;
+  /** Recipients x402 payments may go to (lowercased); absent means any. */
+  x402AllowedPayees?: string[];
   insecure?: boolean; // Skip TLS certificate verification
 }
 
@@ -714,6 +721,7 @@ class BridgeProcess {
         paymentCache: this.x402PaymentCache,
         ...(this.options.x402 && { schemePreference: this.options.x402 }),
         ...(maxAmountAtomicUnits !== undefined && { maxAmountAtomicUnits }),
+        ...(this.options.x402AllowedPayees && { allowedPayees: this.options.x402AllowedPayees }),
       });
     }
 
@@ -1383,6 +1391,7 @@ class BridgeProcess {
           maxAmountAtomicUnits,
           maxAmountScope: scopedMaxAmountAtomicUnits === undefined ? 'session' : 'call',
         }),
+        ...(this.options.x402AllowedPayees && { allowedPayees: this.options.x402AllowedPayees }),
       });
       this.x402PaymentCache.signature = signed.paymentSignatureBase64;
       logger.debug(
@@ -1988,7 +1997,7 @@ async function main(): Promise<void> {
 
   if (args.length < 2) {
     console.error(
-      'Usage: mcpc-bridge <sessionName> <transportConfigJson> [--verbose] [--profile <name>] [--proxy-host <host>] [--proxy-port <port>] [--mcp-session-id <id>] [--protocol-version <version>] [--x402 <auto|upto|exact>] [--x402-max-amount <usd>] [--insecure]'
+      'Usage: mcpc-bridge <sessionName> <transportConfigJson> [--verbose] [--profile <name>] [--proxy-host <host>] [--proxy-port <port>] [--mcp-session-id <id>] [--protocol-version <version>] [--x402 <auto|upto|exact>] [--x402-max-amount <usd>] [--x402-allow-payee <address,...>] [--insecure]'
     );
     process.exit(1);
   }
@@ -2056,6 +2065,18 @@ async function main(): Promise<void> {
     }
   }
 
+  // Parse `--x402-allow-payee <address,...>` (recipients x402 payments may go to).
+  let x402AllowedPayees: string[] | undefined;
+  const x402AllowPayeeIndex = args.indexOf('--x402-allow-payee');
+  if (x402AllowPayeeIndex !== -1) {
+    try {
+      x402AllowedPayees = parseAllowedPayees(args[x402AllowPayeeIndex + 1] ?? '');
+    } catch (error) {
+      console.error((error as Error).message);
+      process.exit(1);
+    }
+  }
+
   // Parse --insecure flag (skip TLS certificate verification)
   const insecure = args.includes('--insecure');
 
@@ -2086,6 +2107,9 @@ async function main(): Promise<void> {
     }
     if (x402MaxAmountUsd !== undefined) {
       bridgeOptions.x402MaxAmountUsd = x402MaxAmountUsd;
+    }
+    if (x402AllowedPayees !== undefined) {
+      bridgeOptions.x402AllowedPayees = x402AllowedPayees;
     }
     if (insecure) {
       bridgeOptions.insecure = true;

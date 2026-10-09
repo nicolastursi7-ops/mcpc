@@ -123,6 +123,7 @@ Options:
   --protocol-version <version>  Pin the MCP protocol version (see below)
   --x402 [scheme]               Enable x402 auto-payment (see below)
   --x402-max-amount <usd>       Refuse any single x402 payment above this amount
+  --x402-allow-payee <address>  Only pay these recipients (repeat or comma-separate)
   --json                        Output in JSON format
 
 Server formats:
@@ -164,6 +165,9 @@ x402 payments (experimental):
   A payment above the cap fails instead of being signed, whatever the server asks
   for. The cap is stored with the session and reused on restart; close the session
   to change it.
+  --x402-allow-payee <address> pays only these recipients, e.g.
+  --x402-allow-payee 0xAb…01,0xCd…02 (or repeat the flag). A payment to any other
+  address fails instead of being signed. Like the cap, it is stored with the session.
 
 Output:
   For a single server, shows session, server info, capabilities, and tools.

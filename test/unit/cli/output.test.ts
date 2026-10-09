@@ -2366,6 +2366,23 @@ describe('formatSessionLine', () => {
     expect(formatSessionLine({ ...base, x402MaxAmountUsd: 0.5 })).toContain('[x402 max $0.50]');
   });
 
+  it('should show how many recipients the session may pay when it has a list', () => {
+    const base: SessionData = {
+      name: '@paid',
+      server: { url: 'https://mcp.example.com' },
+      x402: 'auto',
+      createdAt: '2025-01-01T00:00:00Z',
+    };
+
+    expect(formatSessionLine(base)).not.toContain('allowed payee');
+    expect(
+      formatSessionLine({
+        ...base,
+        x402AllowedPayees: ['0xdf278412ecbe00d6381408f739eb8da60542a0c4'],
+      })
+    ).toContain('[1 allowed payee]');
+  });
+
   it('should include proxy info when configured', () => {
     const session: SessionData = {
       name: '@proxy-test',

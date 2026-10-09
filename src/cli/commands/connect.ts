@@ -151,6 +151,7 @@ type ConnectSessionOptions = {
   protocolVersion?: string;
   x402?: X402SchemePreference;
   x402MaxAmountUsd?: number;
+  x402AllowedPayees?: string[];
   insecure?: boolean;
   skipDetails?: boolean;
   quiet?: boolean;
@@ -301,6 +302,17 @@ export async function connectSession(
   if (options.x402MaxAmountUsd !== undefined && !options.x402) {
     throw new ClientError('--x402-max-amount requires --x402');
   }
+  if (options.x402AllowedPayees !== undefined && !options.x402) {
+    throw new ClientError('--x402-allow-payee requires --x402');
+  }
+
+  /** Render a stored or requested payee list for error messages. */
+  const formatPayees = (payees: readonly string[] | undefined): string =>
+    payees === undefined ? 'any recipient' : payees.join(', ');
+  const samePayees = (
+    a: readonly string[] | undefined,
+    b: readonly string[] | undefined
+  ): boolean => a?.length === b?.length && (a ?? []).every((p) => (b ?? []).includes(p));
 
   /** Render a stored or requested spend limit for error messages. */
   const formatLimit = (maxAmountUsd: number | undefined): string =>
@@ -321,6 +333,17 @@ export async function connectSession(
         throw new ClientError(
           `Session ${name} is already active with a different x402 spend limit ` +
             `(${formatLimit(existingSession.x402MaxAmountUsd)}, requested ${formatLimit(options.x402MaxAmountUsd)}). ` +
+            `To change it, run: mcpc ${name} close`
+        );
+      }
+      // Same for the payee list: a live bridge keeps the one it was started with.
+      if (
+        options.x402AllowedPayees !== undefined &&
+        !samePayees(options.x402AllowedPayees, existingSession.x402AllowedPayees)
+      ) {
+        throw new ClientError(
+          `Session ${name} is already active with a different x402 payee list ` +
+            `(${formatPayees(existingSession.x402AllowedPayees)}, requested ${formatPayees(options.x402AllowedPayees)}). ` +
             `To change it, run: mcpc ${name} close`
         );
       }
@@ -419,6 +442,9 @@ export async function connectSession(
   // spend limit the session was created with — restoring it keeps the guard on until
   // the session is explicitly closed.
   const effectiveX402MaxAmountUsd = options.x402MaxAmountUsd ?? existingSession?.x402MaxAmountUsd;
+  // Likewise for the payee list.
+  const effectiveX402AllowedPayees =
+    options.x402AllowedPayees ?? existingSession?.x402AllowedPayees;
 
   // Create or update session record (without pid - that comes from startBridge)
   // Store serverConfig with headers redacted (actual values in keychain)
@@ -436,6 +462,9 @@ export async function connectSession(
     ...(options.x402 && { x402: options.x402 }),
     ...(effectiveX402MaxAmountUsd !== undefined && {
       x402MaxAmountUsd: effectiveX402MaxAmountUsd,
+    }),
+    ...(effectiveX402AllowedPayees !== undefined && {
+      x402AllowedPayees: effectiveX402AllowedPayees,
     }),
     ...(options.insecure && { insecure: true }),
     // Clear any previous error status (unauthorized, expired) when reconnecting
@@ -468,6 +497,9 @@ export async function connectSession(
       ...(options.x402 && { x402: options.x402 }),
       ...(effectiveX402MaxAmountUsd !== undefined && {
         x402MaxAmountUsd: effectiveX402MaxAmountUsd,
+      }),
+      ...(effectiveX402AllowedPayees !== undefined && {
+        x402AllowedPayees: effectiveX402AllowedPayees,
       }),
       ...(options.insecure && { insecure: true }),
     };
@@ -684,6 +716,7 @@ type BulkConnectOptions = {
   protocolVersion?: string;
   x402?: X402SchemePreference;
   x402MaxAmountUsd?: number;
+  x402AllowedPayees?: string[];
   insecure?: boolean;
 };
 

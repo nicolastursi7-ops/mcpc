@@ -254,6 +254,12 @@ export interface X402FetchMiddlewareOptions {
    * it through `payment-scope.ts`; absent here and unscoped means no limit.
    */
   maxAmountAtomicUnits?: bigint;
+
+  /**
+   * The session's allowed recipients (`connect --x402-allow-payee`), lowercased. A payment to
+   * any other `payTo` is refused instead of signed. Absent means any recipient.
+   */
+  allowedPayees?: readonly string[];
 }
 
 /**
@@ -268,7 +274,14 @@ export function createX402FetchMiddleware(
   baseFetch: FetchLike,
   options: X402FetchMiddlewareOptions
 ): FetchLike {
-  const { wallet, getToolByName, paymentCache, schemePreference, maxAmountAtomicUnits } = options;
+  const {
+    wallet,
+    getToolByName,
+    paymentCache,
+    schemePreference,
+    maxAmountAtomicUnits,
+    allowedPayees,
+  } = options;
 
   return async (url: string | URL, init?: RequestInit): Promise<Response> => {
     // Try to get a payment signature (cached or freshly signed) for tools/call requests
@@ -278,7 +291,8 @@ export function createX402FetchMiddleware(
       getToolByName,
       paymentCache,
       schemePreference,
-      maxAmountAtomicUnits
+      maxAmountAtomicUnits,
+      allowedPayees
     );
     if (paymentSignature) {
       const enhancedInit = injectPayment(init, paymentSignature);
@@ -301,7 +315,8 @@ export function createX402FetchMiddleware(
         wallet,
         paymentCache,
         schemePreference,
-        maxAmountAtomicUnits
+        maxAmountAtomicUnits,
+        allowedPayees
       );
     }
 
@@ -318,7 +333,8 @@ export function createX402FetchMiddleware(
         wallet,
         paymentCache,
         schemePreference,
-        maxAmountAtomicUnits
+        maxAmountAtomicUnits,
+        allowedPayees
       );
     }
 
@@ -350,7 +366,8 @@ async function getOrSignPayment(
   getToolByName: ((name: string) => Tool | undefined) | undefined,
   paymentCache: X402PaymentCache,
   schemePreference?: SchemePreference,
-  maxAmountAtomicUnits?: bigint
+  maxAmountAtomicUnits?: bigint,
+  allowedPayees?: readonly string[]
 ): Promise<string | undefined> {
   if (!init?.body) {
     return undefined;
@@ -412,6 +429,7 @@ async function getOrSignPayment(
       wallet,
       accept,
       ...spendLimitInput(maxAmountAtomicUnits),
+      ...(allowedPayees && { allowedPayees }),
     });
     logger.debug(
       `Fresh payment signed: scheme=${accept.scheme} amount=$${result.amountUsd.toFixed(6)} to=${result.to} network=${result.networkLabel}`
@@ -439,7 +457,8 @@ async function handle402Fallback(
   wallet: SignerWallet,
   paymentCache: X402PaymentCache,
   schemePreference?: SchemePreference,
-  maxAmountAtomicUnits?: bigint
+  maxAmountAtomicUnits?: bigint,
+  allowedPayees?: readonly string[]
 ): Promise<Response> {
   // Extract PAYMENT-REQUIRED header (case-insensitive)
   const paymentRequiredBase64 =
@@ -468,6 +487,7 @@ async function handle402Fallback(
       accept,
       resource: header.resource,
       ...spendLimitInput(maxAmountAtomicUnits),
+      ...(allowedPayees && { allowedPayees }),
     });
 
     logger.debug(

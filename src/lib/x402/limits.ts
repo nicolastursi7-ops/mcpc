@@ -51,3 +51,30 @@ export function parseMaxAmountUsd(value: string | number): number {
   }
   return usd;
 }
+
+/**
+ * A payment was refused locally because its recipient is not on the session's
+ * `--x402-allow-payee` list. A subclass of the spend-limit error on purpose: every
+ * payment path already re-throws that one instead of letting the call go out unpaid.
+ */
+export class X402PayeeNotAllowedError extends X402PaymentLimitError {}
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * Validate a `--x402-allow-payee` value (one address, or several separated by commas)
+ * and return the addresses lowercased, without duplicates.
+ */
+export function parseAllowedPayees(value: string | readonly string[]): string[] {
+  const parts = (typeof value === 'string' ? [value] : value)
+    .flatMap((v) => v.split(','))
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+  const bad = parts.find((v) => !EVM_ADDRESS.test(v));
+  if (parts.length === 0 || bad !== undefined) {
+    throw new ClientError(
+      `Invalid --x402-allow-payee value: "${bad ?? String(value)}". Expected one or more 0x addresses (40 hex characters), separated by commas.`
+    );
+  }
+  return [...new Set(parts.map((v) => v.toLowerCase()))];
+}

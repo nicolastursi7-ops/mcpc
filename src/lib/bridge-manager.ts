@@ -122,6 +122,8 @@ export interface StartBridgeOptions {
   x402?: X402SchemePreference;
   /** Local spend limit in USD applied to every single x402 payment. */
   x402MaxAmountUsd?: number;
+  /** Recipients x402 payments may go to (lowercased); absent means any. */
+  x402AllowedPayees?: string[];
   insecure?: boolean; // Skip TLS certificate verification
 }
 
@@ -156,6 +158,7 @@ export async function startBridge(options: StartBridgeOptions): Promise<StartBri
     protocolVersion,
     x402,
     x402MaxAmountUsd,
+    x402AllowedPayees,
     insecure,
   } = options;
 
@@ -235,6 +238,10 @@ export async function startBridge(options: StartBridgeOptions): Promise<StartBri
   if (x402MaxAmountUsd !== undefined) {
     args.push('--x402-max-amount', String(x402MaxAmountUsd));
     logger.debug(`Passing x402 spend limit: $${x402MaxAmountUsd}`);
+  }
+  if (x402AllowedPayees !== undefined) {
+    args.push('--x402-allow-payee', x402AllowedPayees.join(','));
+    logger.debug(`Passing x402 allowed payees: ${x402AllowedPayees.join(', ')}`);
   }
 
   // Pass insecure flag (if enabled)
@@ -532,6 +539,10 @@ export async function restartBridge(sessionName: string): Promise<StartBridgeRes
   if (session.x402MaxAmountUsd !== undefined) {
     bridgeOptions.x402MaxAmountUsd = session.x402MaxAmountUsd;
     logger.debug(`Using saved x402 spend limit: $${session.x402MaxAmountUsd}`);
+  }
+  if (session.x402AllowedPayees !== undefined) {
+    bridgeOptions.x402AllowedPayees = session.x402AllowedPayees;
+    logger.debug(`Using saved x402 allowed payees: ${session.x402AllowedPayees.join(', ')}`);
   }
   if (session.insecure) {
     bridgeOptions.insecure = session.insecure;

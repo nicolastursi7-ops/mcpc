@@ -185,6 +185,11 @@ export interface SessionData {
    * Absent / undefined means payments are capped only by what the server asks for.
    */
   x402MaxAmountUsd?: number;
+  /**
+   * Recipients x402 payments may go to (`--x402-allow-payee`), lowercased.
+   * Absent / undefined means any recipient the server names.
+   */
+  x402AllowedPayees?: string[];
   insecure?: boolean; // Skip TLS certificate verification
   pid?: number; // Bridge process PID
   protocolVersion?: string; // Negotiated MCP version

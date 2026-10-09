@@ -11,7 +11,10 @@ import {
   type PaymentRequiredAccept,
   type SignerWallet,
 } from '../../../../src/lib/x402/signer.js';
-import { X402PaymentLimitError } from '../../../../src/lib/x402/limits.js';
+import {
+  X402PayeeNotAllowedError,
+  X402PaymentLimitError,
+} from '../../../../src/lib/x402/limits.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -399,6 +402,63 @@ describe('signPayment', () => {
         maxAmountAtomicUnits: 1_000_000n,
       })
     ).rejects.toBeInstanceOf(X402PaymentLimitError);
+  });
+
+  // -------------------------------------------------------------------------
+  // allowed recipients (--x402-allow-payee)
+  // -------------------------------------------------------------------------
+
+  it('signs a payment to an allowed recipient, whatever its letter case', async () => {
+    const result = await signPayment({
+      wallet: MOCK_WALLET,
+      accept: {
+        ...VALID_EXACT_ACCEPT,
+        payTo: VALID_EXACT_ACCEPT.payTo.toUpperCase().replace('0X', '0x'),
+      },
+      allowedPayees: [VALID_EXACT_ACCEPT.payTo.toLowerCase()],
+    });
+    expect(result.paymentSignatureBase64).toBeTruthy();
+  });
+
+  it('refuses a recipient that is not on the list, before signing, naming it', async () => {
+    const other = '0x9999999999999999999999999999999999999999';
+    const attempt = signPayment({
+      wallet: MOCK_WALLET,
+      accept: { ...VALID_EXACT_ACCEPT, payTo: other },
+      allowedPayees: [VALID_EXACT_ACCEPT.payTo],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(X402PayeeNotAllowedError);
+    await expect(attempt).rejects.toThrow(other);
+    await expect(attempt).rejects.toThrow('--x402-allow-payee');
+    expect(mockSignTypedData).not.toHaveBeenCalled();
+  });
+
+  it('is a spend-limit error, so every payment path re-throws it instead of going out unpaid', () => {
+    expect(new X402PayeeNotAllowedError('x')).toBeInstanceOf(X402PaymentLimitError);
+  });
+
+  it('holds the upto scheme to the list before any Permit2 approval', async () => {
+    mockReadContract.mockResolvedValue(0n); // would need an approve
+    await expect(
+      signPayment({
+        wallet: MOCK_WALLET,
+        accept: { ...VALID_UPTO_ACCEPT, payTo: '0x9999999999999999999999999999999999999999' },
+        allowedPayees: [VALID_UPTO_ACCEPT.payTo],
+      })
+    ).rejects.toBeInstanceOf(X402PayeeNotAllowedError);
+    expect(mockSendTransaction).not.toHaveBeenCalled();
+    expect(mockSignTypedData).not.toHaveBeenCalled();
+  });
+
+  it('checks the recipient before the amount', async () => {
+    await expect(
+      signPayment({
+        wallet: MOCK_WALLET,
+        accept: { ...VALID_EXACT_ACCEPT, payTo: '0x9999999999999999999999999999999999999999' },
+        allowedPayees: [VALID_EXACT_ACCEPT.payTo],
+        maxAmountAtomicUnits: 1n,
+      })
+    ).rejects.toBeInstanceOf(X402PayeeNotAllowedError);
   });
 
   it('unsupported scheme: throws', async () => {

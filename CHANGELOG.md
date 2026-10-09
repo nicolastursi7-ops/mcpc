@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `mcpc connect --x402-allow-payee <address>` option that limits x402 payments to the listed recipients (repeat the flag or separate addresses with commas). A payment to any other address fails instead of being signed, before any Permit2 approval for `upto`. The list is stored with the session and reused on restart, like `--x402-max-amount`.
 - New `mcpc connect --x402-max-amount <usd>` option that caps every single x402 payment, e.g. `--x402-max-amount 0.50`. A payment above the cap fails instead of being signed, whatever the server asks for. The cap is stored with the session and reused on restart, and `tools-call --x402-max-amount` overrides it for one call.
 - `skills-list` and `skills-get` now speak the MCP Skills extension as specified (`skills/list`, `skills/get`), replacing the earlier draft that discovered skills through a `skill://index.json` file. `skills-get` also reads a skill's supporting files (`mcpc @session skills-get <skill> references/FORMS.md`) and verifies everything it prints against the skill's published manifest — size, digest, and the SKILL.md frontmatter — so content that does not match is refused instead of shown. Requires a server on MCP 2026-07-28 or later that declares the extension.
 - New `resources-directory-read <uri>` command lists the direct children of a directory resource, for servers that declare `"directoryRead": true`.

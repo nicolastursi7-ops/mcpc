@@ -36,7 +36,7 @@ import { clean } from './commands/clean.js';
 import { MCPC_OAUTH_CALLBACK_HOSTS, MCPC_OAUTH_CALLBACK_PORTS } from '../lib/auth/oauth-utils.js';
 import type { OutputMode, X402SchemePreference } from '../lib/index.js';
 import { X402_SCHEME_PREFERENCES } from '../lib/index.js';
-import { parseMaxAmountUsd } from '../lib/x402/limits.js';
+import { parseAllowedPayees, parseMaxAmountUsd } from '../lib/x402/limits.js';
 import {
   extractOptions,
   preProcessSkillArgv,
@@ -93,6 +93,8 @@ interface HandlerOptions {
   x402?: X402SchemePreference;
   /** Local spend limit in USD applied to every single x402 payment. */
   x402MaxAmountUsd?: number;
+  /** Recipients x402 payments may go to (lowercased). */
+  x402AllowedPayees?: string[];
   insecure?: boolean;
   schema?: string;
   schemaMode?: 'strict' | 'compatible' | 'ignore';
@@ -154,6 +156,9 @@ function getOptionsFromCommand(command: Command): HandlerOptions {
   // session, withMcpClient() for a tools-call against an existing one.
   if (opts.x402MaxAmount !== undefined) {
     options.x402MaxAmountUsd = parseMaxAmountUsd(opts.x402MaxAmount as string);
+  }
+  if (opts.x402AllowPayee !== undefined) {
+    options.x402AllowedPayees = parseAllowedPayees(opts.x402AllowPayee as string[]);
   }
   if (opts.insecure) options.insecure = true;
   if (opts.schema) options.schema = opts.schema;
@@ -500,6 +505,11 @@ Full docs: ${docsUrl}`
     .option('--protocol-version <version>', 'Pin the MCP protocol version (see below)')
     .option('--x402 [scheme]', 'Enable x402 auto-payment (see below)')
     .option('--x402-max-amount <usd>', 'Refuse any single x402 payment above this amount')
+    .option(
+      '--x402-allow-payee <address>',
+      'Only pay these recipients (repeat or comma-separate)',
+      (value: string, previous: string[] = []) => [...previous, value]
+    )
     .addHelpText(
       'after',
       `
@@ -542,6 +552,9 @@ ${chalk.bold('x402 payments (experimental):')}
   A payment above the cap fails instead of being signed, whatever the server asks
   for. The cap is stored with the session and reused on restart; close the session
   to change it.
+  --x402-allow-payee <address> pays only these recipients, e.g.
+  --x402-allow-payee 0xAb…01,0xCd…02 (or repeat the flag). A payment to any other
+  address fails instead of being signed. Like the cap, it is stored with the session.
 ${outputHelp([
   'For a single server, shows session, server info, capabilities, and tools.',
   'Bulk connects list every session with its state, then a summary.',
@@ -575,6 +588,9 @@ ${outputHelp([
           ...(globalOpts.x402 && { x402: globalOpts.x402 }),
           ...(globalOpts.x402MaxAmountUsd !== undefined && {
             x402MaxAmountUsd: globalOpts.x402MaxAmountUsd,
+          }),
+          ...(globalOpts.x402AllowedPayees !== undefined && {
+            x402AllowedPayees: globalOpts.x402AllowedPayees,
           }),
           ...(globalOpts.insecure && { insecure: true }),
         });
@@ -611,6 +627,9 @@ ${outputHelp([
           ...(globalOpts.x402MaxAmountUsd !== undefined && {
             x402MaxAmountUsd: globalOpts.x402MaxAmountUsd,
           }),
+          ...(globalOpts.x402AllowedPayees !== undefined && {
+            x402AllowedPayees: globalOpts.x402AllowedPayees,
+          }),
           ...(globalOpts.insecure && { insecure: true }),
         });
         return;
@@ -639,6 +658,9 @@ ${outputHelp([
           ...(globalOpts.x402MaxAmountUsd !== undefined && {
             x402MaxAmountUsd: globalOpts.x402MaxAmountUsd,
           }),
+          ...(globalOpts.x402AllowedPayees !== undefined && {
+            x402AllowedPayees: globalOpts.x402AllowedPayees,
+          }),
           ...(globalOpts.insecure && { insecure: true }),
         });
       } else {
@@ -651,6 +673,9 @@ ${outputHelp([
           ...(globalOpts.x402 && { x402: globalOpts.x402 }),
           ...(globalOpts.x402MaxAmountUsd !== undefined && {
             x402MaxAmountUsd: globalOpts.x402MaxAmountUsd,
+          }),
+          ...(globalOpts.x402AllowedPayees !== undefined && {
+            x402AllowedPayees: globalOpts.x402AllowedPayees,
           }),
           ...(globalOpts.insecure && { insecure: true }),
         });

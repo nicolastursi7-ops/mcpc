@@ -6,6 +6,7 @@ import { ClientError } from '../../../../src/lib/errors.js';
 import {
   MIN_AMOUNT_USD,
   formatUsdAmount,
+  parseAllowedPayees,
   parseMaxAmountUsd,
   usdToAtomicUnits,
 } from '../../../../src/lib/x402/limits.js';
@@ -51,4 +52,22 @@ describe('parseMaxAmountUsd', () => {
       expect(() => parseMaxAmountUsd(value)).toThrow('--x402-max-amount');
     }
   );
+});
+
+describe('parseAllowedPayees', () => {
+  const A = '0xdf278412ecbe00d6381408f739eb8da60542a0c4';
+  const B = '0x9999999999999999999999999999999999999999';
+
+  it('accepts one address, a comma-separated list, or repeated flags, lowercased and deduplicated', () => {
+    expect(parseAllowedPayees(A.toUpperCase().replace('0X', '0x'))).toEqual([A]);
+    expect(parseAllowedPayees(`${A}, ${B}`)).toEqual([A, B]);
+    expect(parseAllowedPayees([A, `${B},${A}`])).toEqual([A, B]);
+  });
+
+  it('rejects anything that is not a 0x address, naming it', () => {
+    expect(() => parseAllowedPayees('vitalik.eth')).toThrow(ClientError);
+    expect(() => parseAllowedPayees(`${A},0x123`)).toThrow('"0x123"');
+    expect(() => parseAllowedPayees('')).toThrow(ClientError);
+    expect(() => parseAllowedPayees(' , ')).toThrow(ClientError);
+  });
 });

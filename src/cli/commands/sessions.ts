@@ -439,6 +439,9 @@ export async function restartSession(
     ...(session.proxy && { proxyConfig: session.proxy }),
     ...(session.x402 && { x402: session.x402 }),
     ...(session.x402MaxAmountUsd !== undefined && { x402MaxAmountUsd: session.x402MaxAmountUsd }),
+    ...(session.x402AllowedPayees !== undefined && {
+      x402AllowedPayees: session.x402AllowedPayees,
+    }),
     ...(session.insecure && { insecure: session.insecure }),
   };
 

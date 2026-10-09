@@ -19,7 +19,12 @@ import {
 import { ClientError } from '../errors.js';
 import { createLogger } from '../logger.js';
 import type { X402SchemePreference } from '../types.js';
-import { USDC_DECIMALS, X402PaymentLimitError, formatUsdAmount } from './limits.js';
+import {
+  USDC_DECIMALS,
+  X402PayeeNotAllowedError,
+  X402PaymentLimitError,
+  formatUsdAmount,
+} from './limits.js';
 
 const logger = createLogger('x402-signer');
 
@@ -183,6 +188,11 @@ export interface SignPaymentInput {
    * `tools-call --x402-max-amount`.
    */
   maxAmountScope?: 'session' | 'call';
+  /**
+   * Recipients this session may pay (`--x402-allow-payee`), lowercased. When set, signing a
+   * payment to any other `payTo` throws `X402PayeeNotAllowedError` instead.
+   */
+  allowedPayees?: readonly string[];
 }
 
 export interface SignPaymentResult {
@@ -353,11 +363,30 @@ function assertWithinSpendLimit(input: SignPaymentInput): void {
 }
 
 /**
+ * Refuse a payment to a recipient that is not on the session's `--x402-allow-payee` list.
+ *
+ * Runs before signing, next to the spend limit, so every automatic payment path is held to
+ * the same list. The spend limit bounds how much a payment may move; this bounds where it
+ * may go, which the server otherwise chooses on every 402.
+ */
+function assertAllowedPayee(input: SignPaymentInput): void {
+  const { accept, allowedPayees } = input;
+  if (allowedPayees === undefined) return;
+  const payTo = typeof accept.payTo === 'string' ? accept.payTo.toLowerCase() : '';
+  if (allowedPayees.includes(payTo)) return;
+  throw new X402PayeeNotAllowedError(
+    `x402 payment refused: ${accept.payTo} is not on this session's --x402-allow-payee list ` +
+      `(${allowedPayees.join(', ')}). To pay it, reconnect the session with it added.`
+  );
+}
+
+/**
  * Sign an x402 payment and return a base64-encoded PAYMENT-SIGNATURE header value.
  * Delegates to scheme-specific signers based on `accept.scheme`.
  */
 export async function signPayment(input: SignPaymentInput): Promise<SignPaymentResult> {
   const { accept } = input;
+  assertAllowedPayee(input);
   assertWithinSpendLimit(input);
   logger.debug(
     `Signing x402 payment: scheme=${accept.scheme} network=${accept.network} amount=${accept.amount} asset=${accept.asset} payTo=${accept.payTo} facilitator=${accept.extra?.facilitatorAddress ?? '<n/a>'}`

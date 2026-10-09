@@ -887,6 +887,22 @@ mcpc @apify tools-call expensive-tool --x402-max-amount 2 query:="hello"
 Because the per-call value may also be higher than the session's, the session cap is a default
 rather than a ceiling — it does not constrain a caller that composes its own command lines.
 
+### Limiting who a session can pay
+
+The spend limit bounds how much a payment may move; the server still chooses where it goes. To pin
+that too, list the recipients the session may pay:
+
+```bash
+# Pay only this address, and never more than $0.50 at a time
+mcpc connect mcp.apify.com @apify --x402 --x402-max-amount 0.50 \
+  --x402-allow-payee 0xYourSellersPayToAddress
+```
+
+A payment to any other address is refused locally, before anything is signed (and, for `upto`,
+before any Permit2 approval), and the tool call fails naming the address that was asked for.
+Repeat the flag or separate addresses with commas. The list is stored in `sessions.json` with the
+session and reused on restart; to change it, close the session and connect again.
+
 ### Supported networks
 
 | Network              | Status       |
